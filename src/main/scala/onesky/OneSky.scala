@@ -69,7 +69,7 @@ class OneSky(
     params: Map[String, String] = Map(),
     authRequired: Boolean = true
   )(
-  implicit mf: Manifest[T]
+    implicit mf: Manifest[T]
   ): Response[T] =
     performRequest(
       Http.multipart(apiURL + url, parts: _*),
@@ -89,12 +89,12 @@ class OneSky(
 
     def show(id: Int) = performRequest[ProjectGroupDetails]("project-groups/" + id)
 
-    def create(name: String, locale: String = null) =
+    def create(name: String, locale: Option[String] = None) =
       performRequest[Unit]("project-groups",
         method = "POST",
         params = Map(
           "name" -> name,
-          "locale" -> locale
+          "locale" -> locale.orNull
         )
       )
 
@@ -108,22 +108,22 @@ class OneSky(
 
     def show(id: Int) = performRequest[ProjectDetails]("projects/" + id)
 
-    def create(groupID: Int, projectType: String, name: String = null, description: String = null) =
+    def create(groupID: Int, projectType: String, name: Option[String] = None, description: Option[String] = None) =
       performRequest[Unit](s"project-groups/$groupID/projects",
         method = "POST",
         params = Map(
           "project_type" -> projectType,
-          "name" -> name,
-          "description" -> description
+          "name" -> name.orNull,
+          "description" -> description.orNull
         )
       )
 
-    def update(id: Int, name: String = null, description: String = null) =
+    def update(id: Int, name: Option[String] = None, description: Option[String] = None) =
       performRequest[Unit]("projects/" + id,
         method = "PUT",
         params = Map(
-          "name" -> name,
-          "description" -> description
+          "name" -> name.orNull,
+          "description" -> description.orNull
         )
       )
 
