@@ -2,9 +2,10 @@ package onesky
 
 import onesky.entity._
 import java.security.MessageDigest
+import java.nio.file._
 import onesky.util.{SnakeCaseMangler, UnitSerializer}
-
-import scalaj.http.Http
+import scalaj.http.Http.Request
+import scalaj.http.{MultiPart, Http}
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.DefaultWriters.StringWriter
@@ -30,15 +31,13 @@ class OneSky(
   }
 
   def performRequest[T](
-    url: String,
-    params: Map[String, String] = Map(),
-    authRequired: Boolean = true,
-    method: String = "GET"
+    req: Request,
+    params: Map[String, String],
+    authRequired: Boolean
   )(
     implicit mf: Manifest[T]
   ): Response[T] = {
-    val json = Http(apiURL + url).method(method)
-      .header("Content-Type", "application/json")
+    val json = req
       .params(if (!authRequired) params else params ++ mkAuthParams)
       .asString.asJValue
     val meta = (json \ "meta").extract[ResponseMetadata]
@@ -48,6 +47,35 @@ class OneSky(
       Failure(meta.statusCode, meta.message.getOrElse("Unknown error"))
     }
   }
+
+  def performRequest[T](
+    url: String,
+    params: Map[String, String] = Map(),
+    authRequired: Boolean = true,
+    method: String = "GET"
+  )(
+    implicit mf: Manifest[T]
+  ): Response[T] =
+    performRequest[T](
+      Http(apiURL + url).method(method)
+        .header("Content-Type", "application/json"),
+      params,
+      authRequired
+    )
+
+  def performMultiPartRequest[T](
+    url: String,
+    parts: List[MultiPart] = Nil,
+    params: Map[String, String] = Map(),
+    authRequired: Boolean = true
+  )(
+  implicit mf: Manifest[T]
+  ): Response[T] =
+    performRequest(
+      Http.multipart(apiURL + url, parts: _*),
+      params,
+      authRequired
+    )
 
   object ProjectGroup {
     def list(page: Option[Int] = None, perPage: Option[Int] = None) = {
@@ -76,14 +104,7 @@ class OneSky(
   }
 
   object Project {
-    def list(groupID: Int, page: Option[Int] = None, perPage: Option[Int] = None) = {
-      require(page.forall(_ > 0), "page should be greater than zero")
-      require(perPage.forall(x => 0 < x && x < 101), "perPage should be in range [1,100]")
-      performRequest[List[Project]](s"project-groups/$groupID/projects", Map(
-        "page" -> page.map(_.toString).orNull,
-        "per_page" -> perPage.map(_.toString).orNull
-      ))
-    }
+    def list(groupID: Int) = performRequest[List[Project]](s"project-groups/$groupID/projects")
 
     def show(id: Int) = performRequest[ProjectDetails]("projects/" + id)
 
@@ -125,9 +146,27 @@ class OneSky(
       ))
     }
 
-    // 1
-
-    // 2
+    def upload(
+      projectID: Int,
+      localPath: String,
+      remoteName: String,
+      format: String,
+      locale: Option[String] = None,
+      keepAllStrings: Option[Boolean] = None
+    ) =
+      performMultiPartRequest[Unit](
+        s"projects/$projectID/files",
+        parts = List(
+          MultiPart("attachment", remoteName, "text/plain", Files.readAllBytes(Paths.get(localPath)))
+        ),
+        params = Map(
+          "file" -> remoteName,
+          "file_format" -> format,
+          "locale" -> locale.orNull,
+          "is_keeping_all_strings" -> keepAllStrings.map(_.toString).orNull
+        ),
+        authRequired = true
+      )
   }
 
   object Translation {}
