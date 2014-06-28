@@ -10,7 +10,7 @@
 
 ## Usage
 
-### Get the list of projects for given group:
+### Get the list of projects for the given group:
 
 ```scala
 import onesky._
