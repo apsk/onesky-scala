@@ -10,17 +10,19 @@
 
 ## Usage
 
+### Example initialization (parameterized module style):
+
+```scala
+object MyOneSky extends OneSky(
+  apiKey = readLine("public key: "),
+  apiSecret = readLine("secret key: ")
+)
+```
+
 ### Get the list of projects for the given group:
 
 ```scala
-import onesky._
-
 object Main extends App {
-  val MyOneSky = new OneSky(
-    apiKey = "XfeAaswL1JlE7WejcRMeKugaw26AwpVk",
-    apiSecret = "q2wTMvn5LznKzyKKlpNDc3Rbzcv5d9su"
-  )
-
   import MyOneSky._
 
   Project.list(4201) match {
