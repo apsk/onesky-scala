@@ -4,9 +4,9 @@ import onesky.entity.Language
 
 case class ResponseMetadata(
   statusCode: Int,
-  message: Option[String],
-  recordCount: Option[Int],
-  language: Option[Language]
+  message: Option[String] = None,
+  recordCount: Option[Int] = None,
+  language: Option[Language] = None
 )
 
 sealed trait Response[+T] {

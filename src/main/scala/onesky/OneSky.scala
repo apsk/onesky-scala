@@ -1,16 +1,17 @@
 package onesky
 
 import onesky.entity._
+import onesky.util.{SnakeCaseMangler, UnitSerializer}
+
 import java.security.MessageDigest
 import java.nio.file._
-import onesky.util.{SnakeCaseMangler, UnitSerializer}
-import scalaj.http.Http.Request
 import scalaj.http.{MultiPart, Http}
+import scalaj.http.Http.Request
 import org.json4s._
-import org.json4s.native.JsonMethods._
-import org.json4s.DefaultWriters.StringWriter
 import org.json4s.NoTypeHints
 import org.json4s.native.Serialization
+import org.json4s.native.JsonMethods._
+import org.json4s.DefaultWriters.StringWriter
 
 class OneSky(
   apiKey: String,
@@ -76,6 +77,24 @@ class OneSky(
       params,
       authRequired
     )
+
+  def performFileDownloadRequest(
+    url: String,
+    saveTo: Path,
+    params: Map[String, String] = Map(),
+    authRequired: Boolean = true,
+    method: String = "GET",
+    copyOptions: List[CopyOption] = List(StandardCopyOption.REPLACE_EXISTING)
+  ): Response[Path] = {
+    val (statusCode, _, _) = Http(apiURL + url).asHeadersAndParse { in =>
+      Files.copy(in, saveTo, copyOptions: _*)
+    }
+    if (statusCode > 199 && statusCode < 301) {
+      Success(ResponseMetadata(statusCode), saveTo)
+    } else {
+      Failure(statusCode, "Unknown error")
+    }
+  }
 
   object ProjectGroup {
     def list(page: Option[Int] = None, perPage: Option[Int] = None) = {
@@ -156,9 +175,7 @@ class OneSky(
     ) =
       performMultiPartRequest[Unit](
         s"projects/$projectID/files",
-        parts = List(
-          MultiPart("attachment", remoteName, "text/plain", Files.readAllBytes(Paths.get(localPath)))
-        ),
+        parts = List(MultiPart("attachment", remoteName, "text/plain", Files.readAllBytes(Paths.get(localPath)))),
         params = Map(
           "file" -> remoteName,
           "file_format" -> format,
@@ -167,17 +184,34 @@ class OneSky(
         ),
         authRequired = true
       )
+
+    def delete(projectID: Int, fileName: String) = performRequest[Unit](s"projects/$projectID/files", method = "DELETE")
   }
 
-  object Translation {}
+  object Translation {
+    def export(projectID: Int, locale: String, sourceName: String, saveTo: Path, exportName: Option[String] = None) =
+      performFileDownloadRequest(s"projects/$projectID/files/translations", saveTo, Map(
+        "locale" -> locale,
+        "source_file_name" -> sourceName,
+        "export_file_name" -> exportName.orNull
+      ))
+  }
 
-  object ImportTask {}
+  object ImportTask {
 
-  object Screenshot {}
+  }
 
-  object Quotation {}
+  object Screenshot {
 
-  object Order {}
+  }
+
+  object Quotation {
+
+  }
+
+  object Order {
+
+  }
 
   object Locale {
     def list(page: Option[Int] = None, perPage: Option[Int] = None) = {
