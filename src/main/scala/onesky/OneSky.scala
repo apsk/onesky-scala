@@ -1,12 +1,14 @@
 package onesky
 
+import java.math.BigInteger
+
 import onesky.entity._
 import onesky.entity.Order
 import onesky.util._
 
 import java.security.MessageDigest
 import java.nio.file._
-import scalaj.http.{Http, MultiPart}
+import scalaj.http.{HttpOptions, Http, MultiPart}
 import scalaj.http.Http.Request
 import org.json4s._
 import org.json4s.native.Serialization
@@ -24,11 +26,10 @@ class OneSky(
 
   def mkAuthParams(): Map[String, String] = {
     val timestamp = (System.currentTimeMillis / 1000).toString
-    val devHash = new String(md5.digest((timestamp + apiSecret).getBytes))
     Map(
       "api_key" -> apiKey,
       "timestamp" -> timestamp,
-      "dev_hash" -> devHash
+      "dev_hash" -> String.format("%1$032x", new BigInteger(1, md5.digest((timestamp + apiSecret).getBytes)))
     )
   }
 
@@ -39,14 +40,16 @@ class OneSky(
   )(
     implicit mf: Manifest[T]
   ): Response[T] = {
-    val json = req
+    val finalReq = req
+      .option(HttpOptions.connTimeout(10000))
+      .option(HttpOptions.readTimeout(50000))
       .params(if (!authRequired) params else params ++ mkAuthParams)
-      .asString.asJValue
+    val json = parse(finalReq.asString)
     val meta = (json \ "meta").extract[ResponseMetadata]
-    if (meta.statusCode > 199 && meta.statusCode < 301) {
+    if (meta.status > 199 && meta.status < 301) {
       Success(meta, (json \ "data").extract[T])
     } else {
-      Failure(meta.statusCode, meta.message.getOrElse("Unknown error"))
+      Failure(meta.status, meta.message.getOrElse("Unknown error"))
     }
   }
 
@@ -59,7 +62,8 @@ class OneSky(
     implicit mf: Manifest[T]
   ): Response[T] =
     performRequest[T](
-      Http(apiURL + url).method(method)
+      Http(apiURL + url)
+        .method(method)
         .header("Content-Type", "application/json"),
       params,
       authRequired
@@ -87,9 +91,10 @@ class OneSky(
     method: String = "GET",
     copyOptions: List[CopyOption] = List(StandardCopyOption.REPLACE_EXISTING)
   ): Response[Path] = {
-    val (statusCode, _, _) = Http(apiURL + url).asHeadersAndParse { in =>
-      Files.copy(in, saveTo, copyOptions: _*)
-    }
+    val (statusCode, _, _) = Http(apiURL + url)
+      .option(HttpOptions.connTimeout(10000))
+      .option(HttpOptions.readTimeout(50000))
+      .asHeadersAndParse { in => Files.copy(in, saveTo, copyOptions: _*) }
     if (statusCode > 199 && statusCode < 301) {
       Success(ResponseMetadata(statusCode), saveTo)
     } else {

@@ -3,18 +3,18 @@ package onesky
 import onesky.entity.Language
 
 case class ResponseMetadata(
-  statusCode: Int,
+  status: Int,
   message: Option[String] = None,
   recordCount: Option[Int] = None,
   language: Option[Language] = None
 )
 
 sealed trait Response[+T] {
-  def statusCode(): Int
+  def status(): Int
 }
 
 case class Success[T](meta: ResponseMetadata, value: T) extends Response[T] {
-  def statusCode() = meta.statusCode
+  def status() = meta.status
 }
 
-case class Failure(statusCode: Int, message: String) extends Response[Nothing]
+case class Failure(status: Int, message: String) extends Response[Nothing]
