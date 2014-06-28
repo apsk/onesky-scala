@@ -16,12 +16,12 @@
 import onesky._
 
 object Main extends App {
-  val OneSky = new OneSky(
+  val MyOneSky = new OneSky(
     apiKey = "XfeAaswL1JlE7WejcRMeKugaw26AwpVk",
     apiSecret = "q2wTMvn5LznKzyKKlpNDc3Rbzcv5d9su"
   )
 
-  import OneSky._
+  import MyOneSky._
 
   Project.list(4201) match {
     case Success(_, projects) => projects.foreach { p => println(s"Project #${p.id}: ${p.name}") }
