@@ -1,15 +1,16 @@
 package onesky
 
 import onesky.entity._
-import onesky.util.{SnakeCaseMangler, UnitSerializer}
+import onesky.entity.Order
+import onesky.util._
 
 import java.security.MessageDigest
 import java.nio.file._
-import scalaj.http.{MultiPart, Http}
+import scalaj.http.{Http, MultiPart}
 import scalaj.http.Http.Request
 import org.json4s._
-import org.json4s.NoTypeHints
 import org.json4s.native.Serialization
+import org.json4s.native.Serialization.write
 import org.json4s.native.JsonMethods._
 import org.json4s.DefaultWriters.StringWriter
 
@@ -167,7 +168,7 @@ class OneSky(
 
     def upload(
       projectID: Int,
-      localPath: String,
+      localPath: Path,
       remoteName: String,
       format: String,
       locale: Option[String] = None,
@@ -175,7 +176,7 @@ class OneSky(
     ) =
       performMultiPartRequest[Unit](
         s"projects/$projectID/files",
-        parts = List(MultiPart("attachment", remoteName, "text/plain", Files.readAllBytes(Paths.get(localPath)))),
+        parts = List(MultiPart("attachment", remoteName, "text/plain", Files.readAllBytes(localPath))),
         params = Map(
           "file" -> remoteName,
           "file_format" -> format,
@@ -195,32 +196,105 @@ class OneSky(
         "source_file_name" -> sourceName,
         "export_file_name" -> exportName.orNull
       ))
+
+    def status(projectID: Int, fileName: String, locale: String) =
+      performRequest[TranslationStatus](s"projects/$projectID/translations/status", Map(
+        "file_name" -> fileName,
+        "locale" -> locale
+      ))
   }
 
   object ImportTask {
+    def list(projectID: Int, page: Option[Int] = None, perPage: Option[Int] = None, status: Option[String] = None) = {
+      require(page.forall(_ > 0), "page should be greater than zero")
+      require(perPage.forall(x => 0 < x && x < 101), "perPage should be in range [1,100]")
+      performRequest[List[ImportTask]](s"projects/$projectID/import-tasks", Map(
+        "page" -> page.map(_.toString).orNull,
+        "per_page" -> perPage.map(_.toString).orNull,
+        "status" -> status.orNull
+      ))
+    }
 
+    def show(projectID: Int, importID: Int) =
+      performRequest[ImportTaskDetails](s"projects/$projectID/import-tasks/$importID")
   }
 
   object Screenshot {
-
+    def upload(projectID: Int, name: String, image: String, tags: List[ScreenshotTag]) =
+      performRequest[Unit](s"projects/$projectID/screenshots",
+        method = "POST",
+        params = Map("screenshots" -> write(Map(
+          "name" -> name,
+          "image" -> image,
+          "tags" -> tags
+        )))
+      )
   }
 
   object Quotation {
-
+    def show(
+      projectID: Int,
+      files: List[String],
+      toLocale: String,
+      isIncludingNotTranslated: Option[Boolean] = None,
+      isIncludingNotApproved: Option[Boolean] = None,
+      isIncludingOutdated: Option[Boolean] = None,
+      specialization: Option[String] = None
+    ) =
+      performRequest[Quotation](s"projects/$projectID/quotations", Map(
+        "files" -> write(files),
+        "to_locale" -> toLocale,
+        "is_including_not_translated" -> isIncludingNotTranslated.map(_.toString).orNull,
+        "is_including_not_approved" -> isIncludingNotApproved.map(_.toString).orNull,
+        "is_including_outdated" -> isIncludingOutdated.map(_.toString).orNull,
+        "specialization" -> specialization.orNull
+      ))
   }
 
   object Order {
-
-  }
-
-  object Locale {
-    def list(page: Option[Int] = None, perPage: Option[Int] = None) = {
+    def list(projectID: Int, page: Option[Int] = None, perPage: Option[Int] = None) = {
       require(page.forall(_ > 0), "page should be greater than zero")
       require(perPage.forall(x => 0 < x && x < 101), "perPage should be in range [1,100]")
-      performRequest[List[ProjectGroup]]("locales", Map(
+      performRequest[List[Order]](s"projects/$projectID/orders", Map(
         "page" -> page.map(_.toString).orNull,
         "per_page" -> perPage.map(_.toString).orNull
       ))
     }
+
+    def show(projectID: Int, orderID: Int) =
+      performRequest[OrderDetails](s"projects/$projectID/orders/$orderID")
+
+    def create(
+      projectID: Int,
+      files: List[String],
+      toLocale: String,
+      orderType: Option[String] = None,
+      isIncludingNotTranslated: Option[Boolean] = None,
+      isIncludingNotApproved: Option[Boolean] = None,
+      isIncludingOutdated: Option[Boolean] = None,
+      translatorType: Option[String] = None,
+      tone: Option[String] = None,
+      specialization: Option[String] = None,
+      note: Option[String] = None
+    ) =
+      performRequest[Unit](s"projects/$projectID/orders",
+        method = "POST",
+        params = Map(
+          "files" -> write(files),
+          "to_locale" -> toLocale,
+          "order_type" -> orderType.orNull,
+          "is_including_not_translated" -> isIncludingNotTranslated.map(_.toString).orNull,
+          "is_including_not_approved" -> isIncludingNotApproved.map(_.toString).orNull,
+          "is_including_outdated" -> isIncludingOutdated.map(_.toString).orNull,
+          "translator_type" -> translatorType.orNull,
+          "tone" -> tone.orNull,
+          "specialization" -> specialization.orNull,
+          "note" -> note.orNull
+        )
+      )
+  }
+
+  object Locale {
+    def list() = performRequest[List[Language]]("locales")
   }
 }
